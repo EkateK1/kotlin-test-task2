@@ -22,7 +22,7 @@ class ExceptionController {
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ApiErrorResponse> {
-        val status = ex.statusCode as HttpStatus
+        val status = HttpStatus.valueOf(ex.statusCode.value())
         log.error("Exception", ex)
         return ResponseEntity
             .status(status)
