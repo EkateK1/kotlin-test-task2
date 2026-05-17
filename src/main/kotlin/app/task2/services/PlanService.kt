@@ -2,9 +2,12 @@ package app.task2.services
 
 import app.task2.dao.PlanDAO
 import app.task2.dto.requests.CreatePlanRequest
+import app.task2.dto.responses.PlanResponse
 import app.task2.entities.Plan
 import app.task2.services.interfaces.PlanInterface
 import org.springframework.stereotype.Service
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
@@ -32,7 +35,7 @@ class PlanService(
             defaultPrice = request.defaultPrice,
             currency = request.currency,
             durationDays = request.durationDays,
-            isActive = request.isActive,
+            isActive = request.isActive ?: true,
             createdAt = now,
         )
         return planDAO.save(plan)
@@ -40,5 +43,33 @@ class PlanService(
 
     override fun getById(id: UUID): Plan {
         return planDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found: $id")
+    }
+
+    @Transactional(readOnly = true)
+    override fun list(pageable: Pageable): Page<PlanResponse> {
+        return planDAO.findAll(pageable).map { buildPlanResponse(it) }
+    }
+
+    private fun buildPlanResponse(plan: Plan): PlanResponse {
+        val id = plan.id ?: throw IllegalStateException("plan.id is null")
+        val serviceName = plan.serviceName ?: throw IllegalStateException("plan.serviceName is null")
+        val planName = plan.planName ?: throw IllegalStateException("plan.planName is null")
+        val defaultPrice = plan.defaultPrice ?: throw IllegalStateException("plan.defaultPrice is null")
+        val currency = plan.currency ?: throw IllegalStateException("plan.currency is null")
+        val durationDays = plan.durationDays ?: throw IllegalStateException("plan.durationDays is null")
+        val isActive = plan.isActive ?: throw IllegalStateException("plan.isActive is null")
+        val createdAt = plan.createdAt ?: throw IllegalStateException("plan.createdAt is null")
+
+        return PlanResponse(
+            id = id,
+            serviceName = serviceName,
+            planName = planName,
+            description = plan.description,
+            defaultPrice = defaultPrice,
+            currency = currency,
+            durationDays = durationDays,
+            isActive = isActive,
+            createdAt = createdAt,
+        )
     }
 }

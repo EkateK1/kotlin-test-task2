@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.dao.InvalidDataAccessApiUsageException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -36,6 +37,14 @@ class ExceptionController {
     )
     fun handleBadRequest(ex: Exception): ResponseEntity<ApiErrorResponse> {
         log.warn("Bad request: {}", ex.message)
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(ApiErrorResponse(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.reasonPhrase, ex.message))
+    }
+
+    @ExceptionHandler(InvalidDataAccessApiUsageException::class)
+    fun handleInvalidDataAccess(ex: InvalidDataAccessApiUsageException): ResponseEntity<ApiErrorResponse> {
+        log.warn("Bad request (data access): {}", ex.message)
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(ApiErrorResponse(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.reasonPhrase, ex.message))

@@ -9,6 +9,5 @@ data class CreatePlanRequest(
     val defaultPrice: BigDecimal,
     val currency: String,
     val durationDays: Int,
-    val isActive: Boolean = true,
+    val isActive: Boolean? = null,
 )
-

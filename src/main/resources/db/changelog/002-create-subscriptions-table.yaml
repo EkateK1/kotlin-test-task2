@@ -57,7 +57,3 @@ databaseChangeLog:
         - sql:
             dbms: postgresql
             sql: "ALTER TABLE subscriptions ADD CONSTRAINT chk_subscriptions_dates CHECK (end_date >= start_date)"
-
-        - sql:
-            dbms: postgresql
-            sql: "ALTER TABLE subscriptions ADD CONSTRAINT chk_subscriptions_price_positive CHECK (actual_price >= 0)"

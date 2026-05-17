@@ -11,6 +11,8 @@ import app.task2.entities.Subscription
 import app.task2.services.interfaces.HistoryInterface
 import app.task2.services.interfaces.PlanInterface
 import app.task2.services.interfaces.SubscriptionInterface
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
@@ -19,6 +21,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
+import org.slf4j.LoggerFactory
 
 @Service
 class SubscriptionService(
@@ -26,11 +29,57 @@ class SubscriptionService(
     private val planService: PlanInterface,
     private val historyService: HistoryInterface,
 ) : SubscriptionInterface {
+    private val log = LoggerFactory.getLogger(SubscriptionService::class.java)
+
     @Transactional(readOnly = true)
     override fun getById(id: UUID): SubscriptionResponse {
         val subscription =
             subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
         return buildSubscriptionResponse(subscription)
+    }
+
+    @Transactional(readOnly = true)
+    override fun list(
+        userId: UUID?,
+        serviceName: String?,
+        status: Status?,
+        dateFrom: LocalDate?,
+        dateTo: LocalDate?,
+        pageable: Pageable,
+    ): Page<SubscriptionResponse> {
+        return subscriptionDAO
+            .findAllFiltered(userId, serviceName, status, dateFrom, dateTo, pageable)
+            .map { buildSubscriptionResponse(it) }
+    }
+
+    @Transactional(readOnly = true)
+    override fun listActiveByUser(userId: UUID, pageable: Pageable): Page<SubscriptionResponse> {
+        return list(userId = userId, serviceName = null, status = Status.ACTIVE, dateFrom = null, dateTo = null, pageable = pageable)
+    }
+
+    @Transactional
+    fun expireEndedSubscriptions(today: LocalDate = LocalDate.now()): Int {
+        val toExpire = subscriptionDAO.findToExpire(today)
+        if (toExpire.isEmpty()) return 0
+
+        val now = LocalDateTime.now()
+        toExpire.forEach { subscription ->
+            val old = subscription.status
+            subscription.status = Status.EXPIRED
+            val saved = subscriptionDAO.save(subscription)
+            historyService.save(
+                History(
+                    id = UUID.randomUUID(),
+                    subscription = saved,
+                    oldStatus = old,
+                    newStatus = Status.EXPIRED,
+                    changedAt = now,
+                    reason = "expired by scheduler",
+                )
+            )
+        }
+        log.info("Expired {} subscriptions (today={})", toExpire.size, today)
+        return toExpire.size
     }
 
     @Transactional
@@ -63,8 +112,7 @@ class SubscriptionService(
         val duration = Duration.between(pausedAt, now)
         val totalSeconds = duration.seconds.coerceAtLeast(0)
         val fullDays = totalSeconds / 86_400
-        val hasRemainder = (totalSeconds % 86_400) != 0L
-        val daysToAdd = (fullDays + if (hasRemainder) 1 else 0).coerceAtLeast(0)
+        val daysToAdd = fullDays.coerceAtLeast(0)
 
         subscription.endDate = endDate.plusDays(daysToAdd)
         subscription.status = Status.ACTIVE
@@ -150,6 +198,10 @@ class SubscriptionService(
             planService.getById(planId)
         } else {
             planService.create(planRequest!!)
+        }
+
+        if (plan.isActive == null || plan.isActive == false) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Plan is not active")
         }
 
         val startDate = request.startDate ?: LocalDate.now()
