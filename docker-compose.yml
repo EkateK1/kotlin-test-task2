@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: task2-postgres
+    environment:
+      POSTGRES_DB: task2_db
+      POSTGRES_USER: task2_user
+      POSTGRES_PASSWORD: task2_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - task2_postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: task2-app
+    depends_on:
+      - postgres
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/task2_db
+      SPRING_DATASOURCE_USERNAME: task2_user
+      SPRING_DATASOURCE_PASSWORD: task2_password
+    ports:
+      - "8080:8080"
+
+volumes:
+  task2_postgres_data:
