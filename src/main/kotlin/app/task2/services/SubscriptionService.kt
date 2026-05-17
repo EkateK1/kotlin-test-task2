@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -25,6 +26,117 @@ class SubscriptionService(
     private val planService: PlanInterface,
     private val historyService: HistoryInterface,
 ) : SubscriptionInterface {
+    @Transactional(readOnly = true)
+    override fun getById(id: UUID): SubscriptionResponse {
+        val subscription =
+            subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+        return buildSubscriptionResponse(subscription)
+    }
+
+    @Transactional
+    override fun pause(id: UUID, reason: String?): SubscriptionResponse {
+        val subscription =
+            subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+
+        val current = subscription.status ?: throw IllegalStateException("subscription.status is null")
+        if (current == Status.PAUSED) return buildSubscriptionResponse(subscription)
+        if (current != Status.ACTIVE) throw ResponseStatusException(HttpStatus.CONFLICT, "Only ACTIVE subscription can be paused")
+
+        return changeStatus(subscription, Status.PAUSED, reason ?: "paused by user")
+    }
+
+    @Transactional
+    override fun unpause(id: UUID, reason: String?): SubscriptionResponse {
+        val subscription =
+            subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+
+        val current = subscription.status ?: throw IllegalStateException("subscription.status is null")
+        if (current != Status.PAUSED) throw ResponseStatusException(HttpStatus.CONFLICT, "Only PAUSED subscription can be unpaused")
+
+        val endDate = subscription.endDate ?: throw IllegalStateException("subscription.endDate is null")
+
+        val pausedHistory = historyService.findLatestPaused(id)
+            ?: throw ResponseStatusException(HttpStatus.CONFLICT, "No PAUSED history record found for subscription: $id")
+
+        val pausedAt = pausedHistory.changedAt ?: throw IllegalStateException("history.changedAt is null")
+        val now = LocalDateTime.now()
+        val duration = Duration.between(pausedAt, now)
+        val totalSeconds = duration.seconds.coerceAtLeast(0)
+        val fullDays = totalSeconds / 86_400
+        val hasRemainder = (totalSeconds % 86_400) != 0L
+        val daysToAdd = (fullDays + if (hasRemainder) 1 else 0).coerceAtLeast(0)
+
+        subscription.endDate = endDate.plusDays(daysToAdd)
+        subscription.status = Status.ACTIVE
+        val saved = subscriptionDAO.save(subscription)
+
+        historyService.save(
+            History(
+                id = UUID.randomUUID(),
+                subscription = saved,
+                oldStatus = Status.PAUSED,
+                newStatus = Status.ACTIVE,
+                changedAt = now,
+                reason = reason ?: "unpaused",
+            )
+        )
+
+        return buildSubscriptionResponse(saved)
+    }
+
+    @Transactional
+    override fun cancel(id: UUID, reason: String?): SubscriptionResponse {
+        val subscription =
+            subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+
+        val current = subscription.status ?: throw IllegalStateException("subscription.status is null")
+        if (current == Status.CANCELLED) return buildSubscriptionResponse(subscription)
+        if (current == Status.EXPIRED) throw ResponseStatusException(HttpStatus.CONFLICT, "EXPIRED subscription cannot be cancelled")
+
+        return changeStatus(subscription, Status.CANCELLED, reason ?: "cancelled by user")
+    }
+
+    @Transactional
+    override fun renew(id: UUID, reason: String?): SubscriptionResponse {
+        val subscription =
+            subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+
+        val currentStatus = subscription.status ?: throw IllegalStateException("subscription.status is null")
+        if (currentStatus != Status.ACTIVE && currentStatus != Status.EXPIRED) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Only ACTIVE or EXPIRED subscription can be renewed")
+        }
+
+        val plan = subscription.plan ?: throw IllegalStateException("subscription.plan is null")
+        val durationDays = plan.durationDays ?: throw IllegalStateException("plan.durationDays is null")
+        if (durationDays <= 0) throw ResponseStatusException(HttpStatus.CONFLICT, "Plan durationDays must be > 0")
+
+        val today = LocalDate.now()
+        val currentEndDate = subscription.endDate ?: throw IllegalStateException("subscription.endDate is null")
+
+        val baseDate = if (currentEndDate.isAfter(today)) currentEndDate else today
+        subscription.endDate = baseDate.plusDays(durationDays.toLong())
+
+        if (currentStatus == Status.EXPIRED) {
+            subscription.startDate = today
+            subscription.status = Status.ACTIVE
+        }
+
+        val saved = subscriptionDAO.save(subscription)
+
+        historyService.save(
+            History(
+                id = UUID.randomUUID(),
+                subscription = saved,
+                oldStatus = currentStatus,
+                newStatus = saved.status ?: currentStatus,
+                changedAt = LocalDateTime.now(),
+                reason = reason ?: "renewed",
+            )
+        )
+
+        return buildSubscriptionResponse(saved)
+    }
+
     @Transactional
     override fun create(request: CreateSubscriptionRequest): SubscriptionResponse {
         val planId = request.planId
@@ -63,6 +175,25 @@ class SubscriptionService(
                 newStatus = Status.ACTIVE,
                 changedAt = LocalDateTime.now(),
                 reason = "created",
+            )
+        )
+
+        return buildSubscriptionResponse(saved)
+    }
+
+    private fun changeStatus(subscription: Subscription, newStatus: Status, reason: String): SubscriptionResponse {
+        val oldStatus = subscription.status
+        subscription.status = newStatus
+        val saved = subscriptionDAO.save(subscription)
+
+        historyService.save(
+            History(
+                id = UUID.randomUUID(),
+                subscription = saved,
+                oldStatus = oldStatus,
+                newStatus = newStatus,
+                changedAt = LocalDateTime.now(),
+                reason = reason,
             )
         )
 
