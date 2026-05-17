@@ -68,11 +68,6 @@ databaseChangeLog:
             dbms: postgresql
             sql: "ALTER TABLE subscription_plans ADD CONSTRAINT chk_subscription_plans_duration_positive CHECK (duration_days > 0)"
 
-        - addUniqueConstraint:
-            tableName: subscription_plans
-            columnNames: service_name, plan_name
-            constraintName: uq_subscription_plans_service_plan
-
         - createIndex:
             tableName: subscription_plans
             indexName: idx_subscription_plans_service_name
