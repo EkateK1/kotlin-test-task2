@@ -35,6 +35,7 @@ class SubscriptionService(
     override fun getById(id: UUID): SubscriptionResponse {
         val subscription =
             subscriptionDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Subscription not found: $id")
+        log.debug("Get subscription id={} status={}", id, subscription.status)
         return buildSubscriptionResponse(subscription)
     }
 
@@ -47,6 +48,17 @@ class SubscriptionService(
         dateTo: LocalDate?,
         pageable: Pageable,
     ): Page<SubscriptionResponse> {
+        log.debug(
+            "List subscriptions userId={} serviceName={} status={} dateFrom={} dateTo={} page={} size={} sort={}",
+            userId,
+            serviceName,
+            status,
+            dateFrom,
+            dateTo,
+            pageable.pageNumber,
+            pageable.pageSize,
+            pageable.sort,
+        )
         return subscriptionDAO
             .findAllFiltered(userId, serviceName, status, dateFrom, dateTo, pageable)
             .map { buildSubscriptionResponse(it) }
@@ -91,6 +103,7 @@ class SubscriptionService(
         if (current == Status.PAUSED) return buildSubscriptionResponse(subscription)
         if (current != Status.ACTIVE) throw ResponseStatusException(HttpStatus.CONFLICT, "Only ACTIVE subscription can be paused")
 
+        log.info("Pause subscription id={} oldStatus={} reason={}", id, current, reason)
         return changeStatus(subscription, Status.PAUSED, reason ?: "paused by user")
     }
 
@@ -117,6 +130,7 @@ class SubscriptionService(
         subscription.endDate = endDate.plusDays(daysToAdd)
         subscription.status = Status.ACTIVE
         val saved = subscriptionDAO.save(subscription)
+        log.info("Unpause subscription id={} endDateShiftDays={} reason={}", id, daysToAdd, reason)
 
         historyService.save(
             History(
@@ -141,6 +155,7 @@ class SubscriptionService(
         if (current == Status.CANCELLED) return buildSubscriptionResponse(subscription)
         if (current == Status.EXPIRED) throw ResponseStatusException(HttpStatus.CONFLICT, "EXPIRED subscription cannot be cancelled")
 
+        log.info("Cancel subscription id={} oldStatus={} reason={}", id, current, reason)
         return changeStatus(subscription, Status.CANCELLED, reason ?: "cancelled by user")
     }
 
@@ -170,6 +185,15 @@ class SubscriptionService(
         }
 
         val saved = subscriptionDAO.save(subscription)
+
+        log.info(
+            "Renew subscription id={} oldStatus={} newStatus={} newEndDate={} reason={}",
+            id,
+            currentStatus,
+            saved.status,
+            saved.endDate,
+            reason,
+        )
 
         historyService.save(
             History(
@@ -218,6 +242,17 @@ class SubscriptionService(
             endDate = endDate,
         )
         val saved = subscriptionDAO.save(subscription)
+
+        log.info(
+            "Created subscription id={} userId={} planId={} serviceName={} planName={} startDate={} endDate={}",
+            saved.id,
+            saved.userId,
+            plan.id,
+            plan.serviceName,
+            plan.planName,
+            saved.startDate,
+            saved.endDate,
+        )
 
         historyService.save(
             History(

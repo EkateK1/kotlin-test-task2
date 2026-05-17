@@ -13,8 +13,8 @@ class SubscriptionExpirationScheduler(
 
     @Scheduled(cron = "0 5 0 * * *")
     fun expireSubscriptions() {
+        log.debug("Scheduler run: expireSubscriptions")
         val expired = subscriptionService.expireEndedSubscriptions()
         if (expired > 0) log.info("Scheduler expired {} subscriptions", expired)
     }
 }
-

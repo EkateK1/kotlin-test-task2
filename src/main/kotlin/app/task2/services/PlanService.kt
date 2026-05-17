@@ -18,6 +18,8 @@ import java.util.UUID
 class PlanService(
     private val planDAO: PlanDAO,
 ) : PlanInterface {
+    private val log = org.slf4j.LoggerFactory.getLogger(PlanService::class.java)
+
     @Transactional
     override fun create(request: CreatePlanRequest): Plan {
         if (request.serviceName.isBlank()) throw IllegalArgumentException("serviceName is blank")
@@ -38,15 +40,20 @@ class PlanService(
             isActive = request.isActive ?: true,
             createdAt = now,
         )
-        return planDAO.save(plan)
+        val saved = planDAO.save(plan)
+        log.info("Created plan id={} serviceName={} planName={} active={}", saved.id, saved.serviceName, saved.planName, saved.isActive)
+        return saved
     }
 
     override fun getById(id: UUID): Plan {
-        return planDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found: $id")
+        val plan = planDAO.findById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found: $id")
+        log.debug("Get plan id={} serviceName={} planName={}", id, plan.serviceName, plan.planName)
+        return plan
     }
 
     @Transactional(readOnly = true)
     override fun list(pageable: Pageable): Page<PlanResponse> {
+        log.debug("List plans page={} size={} sort={}", pageable.pageNumber, pageable.pageSize, pageable.sort)
         return planDAO.findAll(pageable).map { buildPlanResponse(it) }
     }
 

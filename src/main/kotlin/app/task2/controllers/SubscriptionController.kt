@@ -12,10 +12,12 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -35,6 +37,8 @@ import java.util.UUID
 class SubscriptionController(
     private val subscriptionService: SubscriptionInterface,
 ) {
+    private val log = LoggerFactory.getLogger(SubscriptionController::class.java)
+
     @PostMapping("/subscriptions")
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.CREATED)
     @Operation(
@@ -49,8 +53,14 @@ class SubscriptionController(
             ApiResponse(responseCode = "409", description = "Конфликт бизнес-логики", content = [Content(schema = Schema(hidden = true))]),
         ],
     )
-    fun create(@RequestBody request: CreateSubscriptionRequest): SubscriptionResponse =
-        subscriptionService.create(request)
+    fun create(
+        @RequestBody request: CreateSubscriptionRequest,
+    ): ResponseEntity<SubscriptionResponse> {
+        log.info("POST /subscriptions userId={} planId={} hasPlanObject={}", request.userId, request.planId, request.plan != null)
+        val response = subscriptionService.create(request)
+        log.info("Subscription created id={} userId={} status={}", response.id, response.userId, response.status)
+        return ResponseEntity.status(HttpStatus.CREATED).body(response)
+    }
 
     @GetMapping("/subscriptions/{id}")
     @Operation(
@@ -63,8 +73,11 @@ class SubscriptionController(
             ApiResponse(responseCode = "404", description = "Подписка не найдена", content = [Content(schema = Schema(hidden = true))]),
         ],
     )
-    fun getById(@PathVariable id: UUID): SubscriptionResponse =
-        subscriptionService.getById(id)
+    fun getById(@PathVariable id: UUID): ResponseEntity<SubscriptionResponse> {
+        log.info("GET /subscriptions/{}", id)
+        val response = subscriptionService.getById(id)
+        return ResponseEntity.ok(response)
+    }
 
     @GetMapping("/subscriptions")
     @Operation(
@@ -91,9 +104,27 @@ class SubscriptionController(
             example = "endDate,desc",
         )
         @RequestParam(required = false) sort: List<String>?,
-    ): Page<SubscriptionResponse> {
+    ): ResponseEntity<Page<SubscriptionResponse>> {
         val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 200), parseSort(sort))
-        return subscriptionService.list(userId, serviceName, status, dateFrom, dateTo, pageable)
+        log.info(
+            "GET /subscriptions userId={} serviceName={} status={} dateFrom={} dateTo={} page={} size={} sort={}",
+            userId,
+            serviceName,
+            status,
+            dateFrom,
+            dateTo,
+            pageable.pageNumber,
+            pageable.pageSize,
+            pageable.sort,
+        )
+        val result = subscriptionService.list(userId, serviceName, status, dateFrom, dateTo, pageable)
+        log.info(
+            "List subscriptions result totalElements={} totalPages={} numberOfElements={}",
+            result.totalElements,
+            result.totalPages,
+            result.numberOfElements,
+        )
+        return ResponseEntity.ok(result)
     }
 
     @GetMapping("/users/{userId}/subscriptions/active")
@@ -112,9 +143,23 @@ class SubscriptionController(
             example = "endDate,desc",
         )
         @RequestParam(required = false) sort: List<String>?,
-    ): Page<SubscriptionResponse> {
+    ): ResponseEntity<Page<SubscriptionResponse>> {
         val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 200), parseSort(sort))
-        return subscriptionService.listActiveByUser(userId, pageable)
+        log.info(
+            "GET /users/{}/subscriptions/active page={} size={} sort={}",
+            userId,
+            pageable.pageNumber,
+            pageable.pageSize,
+            pageable.sort,
+        )
+        val result = subscriptionService.listActiveByUser(userId, pageable)
+        log.info(
+            "List active subscriptions result totalElements={} totalPages={} numberOfElements={}",
+            result.totalElements,
+            result.totalPages,
+            result.numberOfElements,
+        )
+        return ResponseEntity.ok(result)
     }
 
     private fun parseSort(sortParams: List<String>?): Sort {
@@ -163,7 +208,12 @@ class SubscriptionController(
             content = [Content(schema = Schema(implementation = ChangeSubscriptionStatusRequest::class))],
         )
         @RequestBody(required = false) request: ChangeSubscriptionStatusRequest?,
-    ): SubscriptionResponse = subscriptionService.pause(id, request?.reason)
+    ): ResponseEntity<SubscriptionResponse> {
+        log.info("PATCH /subscriptions/{}/pause reason={}", id, request?.reason)
+        val response = subscriptionService.pause(id, request?.reason)
+        log.info("Subscription paused id={} status={}", response.id, response.status)
+        return ResponseEntity.ok(response)
+    }
 
     @PatchMapping("/subscriptions/{id}/unpause")
     @Operation(
@@ -177,7 +227,12 @@ class SubscriptionController(
             content = [Content(schema = Schema(implementation = ChangeSubscriptionStatusRequest::class))],
         )
         @RequestBody(required = false) request: ChangeSubscriptionStatusRequest?,
-    ): SubscriptionResponse = subscriptionService.unpause(id, request?.reason)
+    ): ResponseEntity<SubscriptionResponse> {
+        log.info("PATCH /subscriptions/{}/unpause reason={}", id, request?.reason)
+        val response = subscriptionService.unpause(id, request?.reason)
+        log.info("Subscription unpaused id={} status={}", response.id, response.status)
+        return ResponseEntity.ok(response)
+    }
 
     @PatchMapping("/subscriptions/{id}/cancel")
     @Operation(
@@ -191,7 +246,12 @@ class SubscriptionController(
             content = [Content(schema = Schema(implementation = ChangeSubscriptionStatusRequest::class))],
         )
         @RequestBody(required = false) request: ChangeSubscriptionStatusRequest?,
-    ): SubscriptionResponse = subscriptionService.cancel(id, request?.reason)
+    ): ResponseEntity<SubscriptionResponse> {
+        log.info("PATCH /subscriptions/{}/cancel reason={}", id, request?.reason)
+        val response = subscriptionService.cancel(id, request?.reason)
+        log.info("Subscription cancelled id={} status={}", response.id, response.status)
+        return ResponseEntity.ok(response)
+    }
 
     @PatchMapping("/subscriptions/{id}/renew")
     @Operation(
@@ -205,5 +265,10 @@ class SubscriptionController(
             content = [Content(schema = Schema(implementation = ChangeSubscriptionStatusRequest::class))],
         )
         @RequestBody(required = false) request: ChangeSubscriptionStatusRequest?,
-    ): SubscriptionResponse = subscriptionService.renew(id, request?.reason)
+    ): ResponseEntity<SubscriptionResponse> {
+        log.info("PATCH /subscriptions/{}/renew reason={}", id, request?.reason)
+        val response = subscriptionService.renew(id, request?.reason)
+        log.info("Subscription renewed id={} status={} endDate={}", response.id, response.status, response.endDate)
+        return ResponseEntity.ok(response)
+    }
 }

@@ -5,9 +5,11 @@ import app.task2.services.interfaces.PlanInterface
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController
 class PlanController(
     private val planService: PlanInterface,
 ) {
+    private val log = LoggerFactory.getLogger(PlanController::class.java)
+
     @GetMapping("/plans")
     @Operation(
         summary = "Получить список планов",
@@ -35,9 +39,12 @@ class PlanController(
             example = "createdAt,desc",
         )
         @RequestParam(required = false) sort: List<String>?,
-    ): Page<PlanResponse> {
+    ): ResponseEntity<Page<PlanResponse>> {
         val pageable = PageRequest.of(page.coerceAtLeast(0), size.coerceIn(1, 200), parseSort(sort))
-        return planService.list(pageable)
+        log.info("GET /plans page={} size={} sort={}", pageable.pageNumber, pageable.pageSize, pageable.sort)
+        val result = planService.list(pageable)
+        log.info("List plans result totalElements={} totalPages={} numberOfElements={}", result.totalElements, result.totalPages, result.numberOfElements)
+        return ResponseEntity.ok(result)
     }
 
     private fun parseSort(sortParams: List<String>?): Sort {
