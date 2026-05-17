@@ -35,8 +35,7 @@ class Subscription(
 
     @Column(name = "end_date", nullable = false)
     var endDate: LocalDate? = null,
-
-    ) {
+) {
     @OneToMany(mappedBy = "subscription")
     var statusHistory: MutableList<History> = mutableListOf()
 }
