@@ -13,7 +13,7 @@ import java.util.UUID
 
 @Entity
 @Table(name = "subscription_status_history")
-class SubscriptionStatusHistory(
+class History(
     @Id
     @Column(name = "id", nullable = false)
     var id: UUID? = null,

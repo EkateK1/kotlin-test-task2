@@ -9,7 +9,6 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
@@ -25,7 +24,7 @@ class Subscription(
 
     @ManyToOne
     @JoinColumn(name = "plan_id", nullable = false)
-    var plan: SubscriptionPlan? = null,
+    var plan: Plan? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -36,8 +35,7 @@ class Subscription(
 
     @Column(name = "end_date", nullable = false)
     var endDate: LocalDate? = null,
-
 ) {
     @OneToMany(mappedBy = "subscription")
-    var statusHistory: MutableList<SubscriptionStatusHistory> = mutableListOf()
+    var statusHistory: MutableList<History> = mutableListOf()
 }

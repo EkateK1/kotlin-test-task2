@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.InvalidDataAccessApiUsageException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -20,7 +22,7 @@ class ExceptionController {
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ApiErrorResponse> {
-        val status = ex.statusCode as HttpStatus
+        val status = HttpStatus.valueOf(ex.statusCode.value())
         log.error("Exception", ex)
         return ResponseEntity
             .status(status)
@@ -39,6 +41,22 @@ class ExceptionController {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(ApiErrorResponse(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.reasonPhrase, ex.message))
+    }
+
+    @ExceptionHandler(InvalidDataAccessApiUsageException::class)
+    fun handleInvalidDataAccess(ex: InvalidDataAccessApiUsageException): ResponseEntity<ApiErrorResponse> {
+        log.warn("Bad request (data access): {}", ex.message)
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(ApiErrorResponse(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.reasonPhrase, ex.message))
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleDataIntegrity(ex: DataIntegrityViolationException): ResponseEntity<ApiErrorResponse> {
+        log.warn("Conflict (data integrity): {}", ex.message)
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(ApiErrorResponse(HttpStatus.CONFLICT.value(), HttpStatus.CONFLICT.reasonPhrase, ex.rootCause?.message ?: ex.message))
     }
 
     @ExceptionHandler(

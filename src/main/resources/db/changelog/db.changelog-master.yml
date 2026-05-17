@@ -3,6 +3,9 @@ databaseChangeLog:
       file: db/changelog/001-create-subscription-plans-table.yaml
 
   - include:
+      file: db/changelog/004-seed-subscription-plans.yaml
+
+  - include:
       file: db/changelog/002-create-subscriptions-table.yaml
 
   - include:
