@@ -3,5 +3,5 @@ package app.task2.dao
 import org.springframework.stereotype.Service
 
 @Service
-class SubscriptionDAO {
+class HistoryDAO {
 }

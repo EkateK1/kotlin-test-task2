@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Entity
 @Table(name = "subscription_plans")
-class SubscriptionPlan(
+class Plan(
     @Id
     @Column(name = "id", nullable = false)
     var id: UUID? = null,
