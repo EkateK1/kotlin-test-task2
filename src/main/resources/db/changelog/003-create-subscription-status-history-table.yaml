@@ -1,0 +1,56 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-subscription-status-history-table
+      author: andrey
+      changes:
+        - createTable:
+            tableName: subscription_status_history
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: subscription_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: old_status
+                  type: VARCHAR(50)
+
+              - column:
+                  name: new_status
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: changed_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: reason
+                  type: TEXT
+
+        - addForeignKeyConstraint:
+            baseTableName: subscription_status_history
+            baseColumnNames: subscription_id
+            referencedTableName: subscriptions
+            referencedColumnNames: id
+            constraintName: fk_subscription_status_history_subscription_id
+            onDelete: CASCADE
+
+        - sql:
+            dbms: postgresql
+            sql: "ALTER TABLE subscription_status_history ADD CONSTRAINT chk_subscription_status_history_old_status CHECK (old_status IS NULL OR old_status IN ('ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'))"
+
+        - sql:
+            dbms: postgresql
+            sql: "ALTER TABLE subscription_status_history ADD CONSTRAINT chk_subscription_status_history_new_status CHECK (new_status IN ('ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'))"

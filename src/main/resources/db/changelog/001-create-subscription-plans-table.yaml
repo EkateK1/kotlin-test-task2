@@ -1,0 +1,88 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-subscription-plans-table
+      author: andrey
+      changes:
+        - createTable:
+            tableName: subscription_plans
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: service_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: plan_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: description
+                  type: TEXT
+
+              - column:
+                  name: default_price
+                  type: NUMERIC(10,2)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: currency
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: duration_days
+                  type: INT
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - sql:
+            dbms: postgresql
+            sql: "ALTER TABLE subscription_plans ADD CONSTRAINT chk_subscription_plans_price_positive CHECK (default_price >= 0)"
+
+        - sql:
+            dbms: postgresql
+            sql: "ALTER TABLE subscription_plans ADD CONSTRAINT chk_subscription_plans_duration_positive CHECK (duration_days > 0)"
+
+        - addUniqueConstraint:
+            tableName: subscription_plans
+            columnNames: service_name, plan_name
+            constraintName: uq_subscription_plans_service_plan
+
+        - createIndex:
+            tableName: subscription_plans
+            indexName: idx_subscription_plans_service_name
+            columns:
+              - column:
+                  name: service_name
+
+        - createIndex:
+            tableName: subscription_plans
+            indexName: idx_subscription_plans_is_active
+            columns:
+              - column:
+                  name: is_active
